@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 const authSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -26,8 +27,9 @@ type AuthFormData = z.infer<typeof authSchema>;
 
 export default function Auth() {
   const [searchParams] = useSearchParams();
-  const [mode, setMode] = useState<'login' | 'signup'>(
-    searchParams.get('mode') === 'login' ? 'login' : 'signup'
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>(
+    searchParams.get('mode') === 'login' ? 'login' : 
+    searchParams.get('mode') === 'forgot' ? 'forgot' : 'signup'
   );
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -56,7 +58,17 @@ export default function Auth() {
   const onSubmit = async (data: AuthFormData) => {
     setIsLoading(true);
     try {
-      if (mode === 'signup') {
+      if (mode === 'forgot') {
+        const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+        if (error) throw error;
+        toast({
+          title: 'Check your email',
+          description: 'We sent you a password reset link.',
+        });
+        setMode('login');
+      } else if (mode === 'signup') {
         const { error } = await signUp(data.email, data.password);
         if (error) throw error;
         toast({
@@ -110,11 +122,14 @@ export default function Auth() {
           </div>
 
           <h1 className="text-2xl font-bold mb-2">
-            {mode === 'signup' ? 'Create your account' : 'Welcome back'}
+            {mode === 'signup' ? 'Create your account' : 
+             mode === 'forgot' ? 'Reset your password' : 'Welcome back'}
           </h1>
           <p className="text-muted-foreground mb-8">
             {mode === 'signup'
               ? 'Start tracking follow-ups and payments'
+              : mode === 'forgot' 
+              ? 'Enter your email to receive a reset link'
               : 'Sign in to your account'}
           </p>
 
@@ -139,24 +154,36 @@ export default function Auth() {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        placeholder="••••••••"
-                        className="h-12 rounded-xl"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {mode !== 'forgot' && (
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="password"
+                          placeholder="••••••••"
+                          className="h-12 rounded-xl"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {mode === 'login' && (
+                <button
+                  type="button"
+                  className="text-sm text-primary hover:underline"
+                  onClick={() => setMode('forgot')}
+                >
+                  Forgot password?
+                </button>
+              )}
 
               <Button
                 type="submit"
@@ -164,7 +191,8 @@ export default function Auth() {
                 disabled={isLoading}
               >
                 {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                {mode === 'signup' ? 'Create Account' : 'Sign In'}
+                {mode === 'signup' ? 'Create Account' : 
+                 mode === 'forgot' ? 'Send Reset Link' : 'Sign In'}
               </Button>
             </form>
           </Form>
@@ -173,6 +201,17 @@ export default function Auth() {
             {mode === 'signup' ? (
               <>
                 Already have an account?{' '}
+                <button
+                  type="button"
+                  className="text-primary hover:underline font-medium"
+                  onClick={() => setMode('login')}
+                >
+                  Sign in
+                </button>
+              </>
+            ) : mode === 'forgot' ? (
+              <>
+                Remember your password?{' '}
                 <button
                   type="button"
                   className="text-primary hover:underline font-medium"
